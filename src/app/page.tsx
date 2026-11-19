@@ -1,68 +1,50 @@
 "use client";
 
 import { AnimatePresence, motion, useMotionValue, useTransform } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Heart, LogIn, LogOut, MapPin, MessageCircle, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Heart, MapPin, MessageCircle, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import type { Session } from "@supabase/supabase-js";
 import type { Profile } from "@/lib/profiles";
-import { getBrowserSupabaseClient } from "@/lib/supabase-browser";
-import { PhoneLogin } from "./phone-login";
 
 type Tab = "Home" | "Discover" | "Matches";
 
 export default function DiscoverApp() {
-  const authClient = useMemo(() => getBrowserSupabaseClient(), []);
-  const phoneAuthRequired = Boolean(authClient);
-  const [session, setSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(!phoneAuthRequired);
   const [tab, setTab] = useState<Tab>("Discover");
   const [feed, setFeed] = useState<Profile[]>([]);
   const [matches, setMatches] = useState<Profile[]>([]);
+  const [feedError, setFeedError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [matchPopup, setMatchPopup] = useState<Profile | null>(null);
   const [swipeKey, setSwipeKey] = useState(0);
   const [lastAction, setLastAction] = useState<"like" | "pass">("like");
-  const [showPhoneSetup, setShowPhoneSetup] = useState(false);
-
-  useEffect(() => {
-    if (!authClient) return;
-    let mounted = true;
-    void authClient.auth.getSession().then(({ data }) => {
-      if (mounted) { setSession(data.session); setAuthReady(true); }
-    }).catch(() => {
-      if (mounted) setAuthReady(true);
-    });
-    const { data: { subscription } } = authClient.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setAuthReady(true);
-    });
-    return () => { mounted = false; subscription.unsubscribe(); };
-  }, [authClient]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const headers = session ? { Authorization: `Bearer ${session.access_token}` } : undefined;
-      const [feedResponse, matchesResponse] = await Promise.all([fetch("/api/feed", { headers }), fetch("/api/matches", { headers })]);
-      if (!feedResponse.ok || !matchesResponse.ok) throw new Error("Could not load profiles");
+      const [feedResponse, matchesResponse] = await Promise.all([fetch("/api/feed"), fetch("/api/matches")]);
+      if (!feedResponse.ok || !matchesResponse.ok) {
+        const failedResponse = !feedResponse.ok ? feedResponse : matchesResponse;
+        const errorData = await failedResponse.json().catch(() => null) as { error?: string } | null;
+        throw new Error(errorData?.error || "Could not load profiles. Please try again.");
+      }
       const feedData = await feedResponse.json();
       const matchesData = await matchesResponse.json();
       setFeed(feedData.profiles);
       setMatches(matchesData.matches);
+      setFeedError("");
       setNotice("");
-    } catch {
-      setNotice("We couldn’t load your discoveries. Please try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "We couldn’t load your discoveries. Please try again.";
+      setFeedError(message);
+      setNotice(message);
     } finally { setLoading(false); }
-  }, [session]);
+  }, []);
 
   useEffect(() => {
-    if (!authReady) return;
-    if (phoneAuthRequired && !session) { setLoading(false); setFeed([]); setMatches([]); return; }
     void refresh();
-  }, [authReady, phoneAuthRequired, refresh, session]);
+  }, [refresh]);
   useEffect(() => {
     if (!notice) return;
     const timeout = window.setTimeout(() => setNotice(""), notice.includes("Vercel deployment") ? 9000 : 3000);
@@ -77,9 +59,7 @@ export default function DiscoverApp() {
     setLastAction(action);
     setNotice(action === "like" ? `You liked ${active.name}` : `You passed on ${active.name}`);
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (session) headers.Authorization = `Bearer ${session.access_token}`;
-      const response = await fetch("/api/swipe", { method: "POST", headers, body: JSON.stringify({ profileId: active.id, action }) });
+      const response = await fetch("/api/swipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ profileId: active.id, action }) });
       if (response.status === 409) { await refresh(); return; }
       if (!response.ok) {
         const errorData = await response.json().catch(() => null) as { error?: string } | null;
@@ -94,7 +74,7 @@ export default function DiscoverApp() {
       }
     } catch (error) { setNotice(error instanceof Error ? error.message : "That didn’t go through. Please try again."); }
     finally { setBusy(false); }
-  }, [active, busy, refresh, session]);
+  }, [active, busy, refresh]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -105,16 +85,13 @@ export default function DiscoverApp() {
     return () => window.removeEventListener("keydown", handler);
   }, [swipe]);
 
-  if (phoneAuthRequired && !authReady) return <main className="login-shell"><header className="login-brand"><span className="brand-mark"><Heart size={19} fill="currentColor" /></span><span>coy<span className="brand-muted">discover</span></span></header><div className="login-loading"><span className="spinner" /> Checking your private session…</div></main>;
-  if (phoneAuthRequired && !session && authClient) return <PhoneLogin client={authClient} onVerified={(nextSession) => { setSession(nextSession); setAuthReady(true); }} />;
-
   return <main className="app-shell">
     <header className="topbar">
       <button className="brand" aria-label="Coy Discover home" onClick={() => setTab("Home")}><span className="brand-mark"><Heart size={19} fill="currentColor" /></span><span>coy<span className="brand-muted">discover</span></span></button>
       <nav className="desktop-tabs" aria-label="Main navigation">
         {(["Home", "Discover", "Matches"] as Tab[]).map((item) => <button key={item} className={`nav-tab ${tab === item ? "active" : ""}`} onClick={() => setTab(item)}>{item}{item === "Matches" && matches.length > 0 && <span className="count">{matches.length}</span>}</button>)}
       </nav>
-      {phoneAuthRequired && session ? <button className="profile-switch" onClick={() => { void authClient?.auth.signOut(); setFeed([]); setMatches([]); }} aria-label="Sign out"><span className="user-dot"><Check size={14} /></span><span className="user-label">Phone verified</span><LogOut size={14} /></button> : <button className="profile-switch demo-switch" onClick={() => setShowPhoneSetup(true)} aria-label="Phone sign in"><span className="user-dot"><LogIn size={14} /></span><span className="user-label">Sign in</span></button>}
+      <div className="profile-switch demo-switch" aria-label="Single-user demo mode"><span className="user-dot">D</span><span className="user-label">Demo mode</span></div>
     </header>
 
     <div className="mobile-tabs" aria-label="Main navigation">
@@ -126,7 +103,7 @@ export default function DiscoverApp() {
       <div className="discovery-layout">
         <section className="card-column" aria-label="Profile discovery">
           <div className="card-stage">
-            {loading ? <div className="loading-card"><div className="skeleton-image" /><div className="skeleton-line" /><div className="skeleton-line short" /><div className="skeleton-pills"><i /><i /><i /></div><div className="loading-caption"><span className="spinner" /> Finding your people…</div></div> : active ? <AnimatePresence mode="popLayout">
+            {loading ? <div className="loading-card"><div className="skeleton-image" /><div className="skeleton-line" /><div className="skeleton-line short" /><div className="skeleton-pills"><i /><i /><i /></div><div className="loading-caption"><span className="spinner" /> Finding your people…</div></div> : feedError ? <div className="empty-card"><span className="empty-icon"><ShieldCheck size={25} /></span><h2>Connect your private storage</h2><p>{feedError}</p><button className="primary-button" onClick={() => void refresh()}>Try again</button></div> : active ? <AnimatePresence mode="popLayout">
               <ProfileCard key={active.id + swipeKey} profile={active} onSwipe={swipe} exitAction={lastAction} />
             </AnimatePresence> : <div className="empty-card"><span className="empty-icon"><Sparkles size={27} /></span><h2>You’re all caught up</h2><p>You’ve met everyone in today’s edit. Come back soon — there’s always someone new to discover.</p></div>}
           </div>
@@ -141,22 +118,7 @@ export default function DiscoverApp() {
     {tab === "Matches" && <MatchesView matches={matches} loading={loading} onOpenDiscover={() => setTab("Discover")} />}
     <footer className="footer"><span>Made with care, by Coy <Heart size={12} fill="currentColor" /></span><span>Good connections, good boundaries.</span></footer>
     <AnimatePresence>{matchPopup && <MatchCelebration profile={matchPopup} onClose={() => setMatchPopup(null)} onSeeMatches={() => { setMatchPopup(null); setTab("Matches"); }} />}</AnimatePresence>
-    <AnimatePresence>{showPhoneSetup && <PhoneSetupNotice onClose={() => setShowPhoneSetup(false)} />}</AnimatePresence>
   </main>;
-}
-
-function PhoneSetupNotice({ onClose }: { onClose: () => void }) {
-  return <motion.div className="setup-overlay" role="dialog" aria-modal="true" aria-labelledby="phone-setup-title" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <motion.section className="setup-card" initial={{ opacity: 0, y: 14, scale: .98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: .98 }}>
-      <button className="setup-close" onClick={onClose} aria-label="Close sign-in details"><X size={19} /></button>
-      <span className="setup-icon"><LogIn size={20} /></span><span className="login-kicker">PRIVATE PHONE SIGN-IN</span>
-      <h2 id="phone-setup-title">Connect phone OTP</h2>
-      <p>SMS sign-in needs a Supabase project and a configured SMS provider. They aren’t connected in this local demo yet, so no verification code can be sent right now.</p>
-      <ol className="setup-steps"><li>Enable <strong>Authentication → Providers → Phone</strong> in Supabase.</li><li>Configure an SMS provider, then add the Supabase URL and publishable key to <code>.env.local</code>.</li><li>Add the server-only service role key, restart <code>npm run dev</code>, and the phone + OTP screen will open automatically.</li></ol>
-      <a className="setup-link" href="https://supabase.com/docs/guides/auth/phone-login" target="_blank" rel="noreferrer">Open Supabase phone login guide <ArrowRight size={14} /></a>
-      <button className="login-submit setup-continue" onClick={onClose}>Continue in demo mode</button>
-    </motion.section>
-  </motion.div>;
 }
 
 function ProfileCard({ profile, onSwipe, exitAction }: { profile: Profile; onSwipe: (action: "like" | "pass") => void; exitAction: "like" | "pass" }) {

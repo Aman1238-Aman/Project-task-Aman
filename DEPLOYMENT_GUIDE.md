@@ -1,100 +1,58 @@
 # Coy Discover deployment guide
 
-This repository is ready for deployment. Use Supabase for durable swipes and matches; Vercel's local filesystem is temporary, so the JSON fallback is for local demos only.
+This assignment needs one demo user and durable swipe history. Local development uses a JSON file; Vercel uses Upstash Redis. No Supabase project, SQL setup, or external auth is required.
 
-## 1. Run and check the project locally
+## 1. Local setup
 
-Install Node.js 20.9 or newer, then run these commands in PowerShell from the project directory:
+Use Node.js 20.9 or newer:
 
 ```powershell
 npm install
-npm run test:api
 npm run dev
 ```
 
-Open `http://localhost:3000`. The `Home` page is intentionally blank. Test discovery and Matches. To demo a match, pass on the first profile (`profile-01`) and like the second (`profile-02`), which has a seeded incoming like.
+Open `http://localhost:3000`. Pass profile 01, then like profile 02 to see the seeded mutual match on a fresh local swipe file. The Home tab is intentionally blank.
 
-## 2. Create a public GitHub repository
+## 2. Connect persistent storage in Vercel
 
-On GitHub, create a **public** repository named `coy-discover`. Leave the README, `.gitignore`, and license options unchecked because those files already exist here. From PowerShell in the project directory, publish this source:
+1. Open your Vercel project and go to **Storage** (or **Infrastructure → Storage**).
+2. Choose **Create Database → Upstash Redis** and complete the provider setup.
+3. Connect the Redis database to this Vercel project and enable it for **Production** and **Preview** as needed.
+4. Check **Settings → Environment Variables**. The integration should provide:
 
-```powershell
-git add .
-git commit -m "Build Coy Discover assignment"
-git branch -M main
-git remote add origin https://github.com/YOUR_GITHUB_USERNAME/coy-discover.git
-git push -u origin main
-```
+   ```text
+   UPSTASH_REDIS_REST_URL
+   UPSTASH_REDIS_REST_TOKEN
+   ```
 
-Replace `YOUR_GITHUB_USERNAME` with your GitHub login. If Git reports that `origin` already exists, use `git remote set-url origin https://github.com/YOUR_GITHUB_USERNAME/coy-discover.git` before pushing.
+   If they were not added automatically, copy the REST endpoint and REST token from the Upstash database connection details and add those exact names manually. Keep both server-only; never add a `NEXT_PUBLIC_` prefix.
 
-The `.gitignore` excludes `.env*` (except `.env.example`), `.next`, `node_modules`, local swipe history, and Vercel metadata. Never commit a Supabase service role key.
+5. Redeploy after connecting storage or changing variables.
 
-## 3. Create Supabase, enable phone OTP, and seed the database
+The app sends Redis commands through Upstash's HTTPS REST API. Swipes are stored in a per-demo-user hash; matches are stored in a set. One atomic Lua script records each swipe, rejects duplicates, and records a mutual match. There is no SQL schema to run.
 
-1. Create a Supabase project and wait until its database is ready.
-2. Open **SQL Editor** in the Supabase dashboard.
-3. Paste the full contents of `supabase/schema.sql` and run it once. It creates the four tables, enables RLS without public policies, seeds 30 fictional profiles and six private incoming likes, and installs an atomic server-only swipe RPC.
-4. In **Authentication → Providers → Phone**, enable phone sign-in. Configure an SMS provider (for example, Twilio) and its credentials in Supabase. Supabase will not send real SMS until this is configured. Provider charges, country rules, and rate limits may apply. For development, Supabase also supports configured test phone numbers/codes.
-5. In **Project Settings → API**, copy the Project URL, the publishable/anon key, and the `service_role` secret. The publishable key is designed for browser use with RLS; the service role is server-only.
+## 3. Deploy this repository
 
-Create `.env.local` from `.env.example` for local OTP login:
+The current GitHub repository is [Aman1238-Aman/Project-task-Aman](https://github.com/Aman1238-Aman/Project-task-Aman). Push new changes to `main`; if the repository is connected to Vercel, that push should start a deployment. If it is not connected, in Vercel choose **Add New → Project**, import this repo, keep the Next.js preset/root directory defaults, and deploy. Use the URL shown on the Vercel deployment page; an old alias may return `DEPLOYMENT_NOT_FOUND`.
 
-```text
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_OR_ANON_KEY
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_SECRET
-```
+## 4. Verify Like, Pass, and persistence
 
-When the two `NEXT_PUBLIC_` values are present, the app requires a verified phone session and sends the user's number to Supabase Auth. The APIs verify the bearer token server-side and scope swipes/matches to that authenticated account. Without them, local development uses the assignment's single-user demo mode.
+After the Vercel deployment is Ready:
 
-## 4. Import and configure Vercel
+1. Open `/api/feed`; a fresh database should return 30 profiles and no incoming-like fields.
+2. In the app, pass profile 01 and like profile 02 on a fresh demo identity. The seeded mutual like should produce the match celebration.
+3. Open Matches and confirm only the mutual profile appears.
+4. Refresh. The swiped profiles should remain out of the feed, and the match should remain in Matches.
+5. Repeating a swipe request for an already-swiped profile should return HTTP 409.
 
-1. Sign into Vercel and choose **Add New → Project**.
-2. Import the `coy-discover` GitHub repository.
-3. Keep the framework preset on **Next.js**, root directory as `./`, and build command as `npm run build`.
-4. Add all four environment variables above under **Settings → Environment Variables**. Add them to Production and Preview (and Development if desired). Redeploy after changing environment variables.
-5. Deploy. Vercel should install from `package-lock.json` and run the Next.js build automatically.
-
-Do not name the service secret `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY`; any `NEXT_PUBLIC_` variable is exposed to browser code.
-
-## 5. Verify the live deployment
-
-After the deployment is Ready:
-
-- Open the live app and confirm the Discover card and mobile navigation render.
-- Verify that the phone form sends a code and accepts it, using a number configured with your SMS provider or a Supabase test number. Do not use a real user's phone without their consent.
-- Open `/api/feed`; it should return 30 profiles for a fresh demo database and should not contain a `likedYou` field.
-- Pass profile 01, then like profile 02. Confirm the “It’s a match” screen appears.
-- Open Matches; only profile 02 should be listed.
-- Refresh the app; profile 02 should remain out of Discover and stay in Matches.
-- Like or pass another profile, then resend the exact same request to `/api/swipe`; the duplicate should receive HTTP 409.
-
-For a fresh deployment, use this request body to verify duplicate protection (send it twice; first response 200, second response 409):
+Example swipe request:
 
 ```json
 {"profileId":"profile-02","action":"like"}
 ```
 
-## 6. Add assignment screenshots
+If Like or Pass reports that persistence is not configured, check that both Upstash variables exist for the Production environment and redeploy. Never paste Redis tokens into chat or commit them to GitHub.
 
-Run the app locally, then capture these views using Windows Snipping Tool or your browser screenshot tool and save them under `docs/screenshots/`:
+## 5. Screenshots and Part A
 
-- `discover-desktop.png`
-- `discover-mobile.png`
-- `match-celebration.png`
-- `matches.png`
-
-Update the screenshot section in `ASSIGNMENT_SUBMISSION.md` with the image paths before handing in the assignment.
-
-Screenshots of the original Coy private OTP, email verification, invite, and extra-slots screens must come from your own Coy session. The prototype login here is for Coy Discover and cannot sign you into Coy's separate app.
-
-## Troubleshooting
-
-- **OTP code is not delivered:** confirm Phone Auth is enabled, the SMS provider is configured, and the number is in E.164 format (for India, `+91...`). Check provider delivery logs and Supabase rate limits.
-- **Phone login works but swipes fail in Vercel:** check all four environment variables and confirm the SQL script ran on the same Supabase project.
-- **Like/Pass returns a Vercel storage message:** the JSON file fallback is only for local development. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel, run `supabase/schema.sql` in that exact Supabase project, and redeploy. The public URL/anon key are additionally needed only if phone OTP login is enabled.
-- **Changes do not appear:** redeploy after changing Vercel environment variables; environment changes do not alter an existing deployment.
-- **Incoming likes are revealed:** the shipped APIs do not return them. Keep `incoming_likes` behind RLS with no client policies and never add its contents to feed responses.
-- **Need to reset a demo:** in the Supabase SQL Editor, delete rows from `matches` and `swipes` for `user_id = 'demo-user'`. This is destructive; preserve any state you need first.
+Capture the local or live app in desktop, mobile, match, and Matches states, then save the files under `docs/screenshots/` as `discover-desktop.png`, `discover-mobile.png`, `match-celebration.png`, and `matches.png`. The original Coy OTP, email verification, invite, and extra-slots screens are private to Coy; capture those only from your own Coy account. This standalone prototype does not sign into Coy.

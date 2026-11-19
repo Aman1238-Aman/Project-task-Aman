@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
 import { profiles } from "@/lib/profiles";
-import { listSwipedProfileIds } from "@/lib/store";
-import { resolveRequestIdentity } from "@/lib/auth";
+import { isDurableStoreConfigured, listSwipedProfileIds } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const identity = await resolveRequestIdentity(request);
-    if (!identity.userId) return NextResponse.json({ error: identity.unavailable ? "Phone sign-in is not fully configured on the server." : "Please sign in to continue." }, { status: identity.unavailable ? 503 : 401 });
-    const swiped = await listSwipedProfileIds(identity.userId);
+    if (process.env.VERCEL && !isDurableStoreConfigured()) return NextResponse.json({ error: "Persistent storage is not connected. Add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel, then redeploy." }, { status: 503 });
+    const swiped = await listSwipedProfileIds("demo-user");
     return NextResponse.json({ profiles: profiles.filter((profile) => !swiped.has(profile.id)) });
   } catch {
-    return NextResponse.json({ error: "Unable to load profiles right now." }, { status: 500 });
+    return NextResponse.json({ error: "Persistent storage could not load swipe history. Check your Upstash Redis connection." }, { status: 503 });
   }
 }

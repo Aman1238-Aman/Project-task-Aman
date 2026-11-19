@@ -15,7 +15,7 @@ Coy's current public product is a double-blind way to find out whether someone y
 
 ## 3. Technology stack
 
-Next.js App Router, React, TypeScript, Tailwind CSS 4, Framer Motion, Lucide React, Node.js route handlers, local JSON persistence, optional Supabase PostgreSQL, and Vercel deployment support.
+Next.js App Router, React, TypeScript, Tailwind CSS 4, Framer Motion, Lucide React, Node.js route handlers, local JSON persistence for development, Upstash Redis REST for Vercel, and Vercel deployment support.
 
 ## 4. Application features
 
@@ -24,8 +24,8 @@ Next.js App Router, React, TypeScript, Tailwind CSS 4, Framer Motion, Lucide Rea
 - Drag gestures, Like and Pass buttons, keyboard controls, animated swipe labels, and action feedback.
 - Loading and completed-deck states, mutual-match celebration, and matches gallery.
 - Seeded incoming likes for a match demo, held on the server.
-- Optional phone OTP sign-in through Supabase Auth, with authenticated API requests and per-account swipe history.
-- Atomic Supabase swipe/match transaction and duplicate prevention.
+- Single-user demo identity as specified in the assignment; no external auth required.
+- Atomic Upstash Redis Lua swipe/match write and duplicate prevention.
 
 ## 5. Part A — Coy product exploration
 
@@ -76,11 +76,11 @@ Invalid JSON or values return HTTP 400. Storage failures return HTTP 500. Profil
 
 ## 8. Database architecture
 
-Local demo mode stores history in `data/swipes.json`. For phone login and persistent hosting, configure Supabase Phone Auth and an SMS provider, run `supabase/schema.sql`, and set the two public Supabase URL/key values plus `SUPABASE_URL` and the server-only `SUPABASE_SERVICE_ROLE_KEY`. The schema contains `profiles`, `swipes`, `incoming_likes`, and `matches`. Composite keys prevent duplicates; the `record_demo_swipe` RPC records an outgoing swipe and mutual match atomically.
+Local demo mode stores history in `data/swipes.json`. For persistent hosting without Supabase, connect Upstash Redis in Vercel and set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Swipe hashes and match sets are stored server-side; an atomic Lua operation prevents duplicate swipes and records a match only for a seeded mutual like.
 
 ## 9. Privacy implementation
 
-When OTP mode is configured, each API checks the Supabase access token server-side and scopes history to its authenticated user ID. The feed excludes profiles already swiped on and returns no “liked you” flag, incoming count, or hidden-like list. A like checks the private incoming-like table on the server and returns a match only if mutual. `/api/matches` reads persisted matches only. Supabase RLS is enabled without public policies; the service role credential remains server-side. Without OTP configuration, the local app uses the assignment's single-user demo mode.
+The assignment uses one demo identity. The feed excludes profiles already swiped on and returns no “liked you” flag, incoming count, or hidden-like list. Incoming-like fixtures are server-only; a Like checks them only while recording the action and returns a match only if mutual. `/api/matches` reads persisted matches only. Redis credentials remain server-side; when Redis is not configured in Vercel, writes fail with an explicit setup message rather than claiming persistence.
 
 ## 10. GitHub repository URL
 

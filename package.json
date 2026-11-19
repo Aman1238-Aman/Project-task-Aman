@@ -2,9 +2,14 @@
   "name": "coy-discover",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "lint": "eslint .", "test:api": "npm run build && node --test tests/api.test.cjs" },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test:api": "npm run build && node --test tests/api.test.cjs"
+  },
   "dependencies": {
-    "@supabase/supabase-js": "^2.57.4",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.468.0",
     "next": "^15.5.3",
