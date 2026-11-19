@@ -94,6 +94,7 @@ Screenshots of the original Coy private OTP, email verification, invite, and ext
 
 - **OTP code is not delivered:** confirm Phone Auth is enabled, the SMS provider is configured, and the number is in E.164 format (for India, `+91...`). Check provider delivery logs and Supabase rate limits.
 - **Phone login works but swipes fail in Vercel:** check all four environment variables and confirm the SQL script ran on the same Supabase project.
+- **Like/Pass returns a Vercel storage message:** the JSON file fallback is only for local development. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in Vercel, run `supabase/schema.sql` in that exact Supabase project, and redeploy. The public URL/anon key are additionally needed only if phone OTP login is enabled.
 - **Changes do not appear:** redeploy after changing Vercel environment variables; environment changes do not alter an existing deployment.
 - **Incoming likes are revealed:** the shipped APIs do not return them. Keep `incoming_likes` behind RLS with no client policies and never add its contents to feed responses.
 - **Need to reset a demo:** in the Supabase SQL Editor, delete rows from `matches` and `swipes` for `user_id = 'demo-user'`. This is destructive; preserve any state you need first.

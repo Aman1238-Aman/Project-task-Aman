@@ -44,6 +44,8 @@ export async function listSwipedProfileIds(userId: string): Promise<Set<string>>
 export async function saveSwipe(userId: string, profileId: string, action: SwipeAction) {
   const createdAt = new Date().toISOString();
   if (!supabase) {
+    // Vercel's function filesystem is ephemeral/read-only. Never report success for a swipe that won't persist.
+    if (process.env.VERCEL) throw new Error("PERSISTENCE_NOT_CONFIGURED");
     return withLocalLock(async () => {
       const state = await readLocal();
       if (state.swipes.some((s) => s.user_id === userId && s.profile_id === profileId)) return { duplicate: true, matched: false };

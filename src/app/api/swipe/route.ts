@@ -19,7 +19,10 @@ export async function POST(request: NextRequest) {
     const result = await saveSwipe(identity.userId, profileId, action);
     if (result.duplicate) return NextResponse.json({ error: "This profile has already been swiped on." }, { status: 409 });
     return NextResponse.json({ ok: true, matched: result.matched, ...(result.matched ? { profile: profiles.find((profile) => profile.id === profileId) } : {}) });
-  } catch {
-    return NextResponse.json({ error: "Unable to save that swipe right now." }, { status: 500 });
+  } catch (error) {
+    if (error instanceof Error && error.message === "PERSISTENCE_NOT_CONFIGURED") {
+      return NextResponse.json({ error: "Swipe history is not configured for this Vercel deployment. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel, run supabase/schema.sql in that Supabase project, then redeploy." }, { status: 503 });
+    }
+    return NextResponse.json({ error: "Unable to save that swipe right now. Check your Supabase environment variables and database schema." }, { status: 500 });
   }
 }

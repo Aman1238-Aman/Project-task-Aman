@@ -65,7 +65,7 @@ export default function DiscoverApp() {
   }, [authReady, phoneAuthRequired, refresh, session]);
   useEffect(() => {
     if (!notice) return;
-    const timeout = window.setTimeout(() => setNotice(""), 2200);
+    const timeout = window.setTimeout(() => setNotice(""), notice.includes("Vercel deployment") ? 9000 : 3000);
     return () => window.clearTimeout(timeout);
   }, [notice]);
   const active = feed[0];
@@ -81,7 +81,10 @@ export default function DiscoverApp() {
       if (session) headers.Authorization = `Bearer ${session.access_token}`;
       const response = await fetch("/api/swipe", { method: "POST", headers, body: JSON.stringify({ profileId: active.id, action }) });
       if (response.status === 409) { await refresh(); return; }
-      if (!response.ok) throw new Error("Could not save swipe");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(errorData?.error || "Could not save swipe. Please try again.");
+      }
       const data = await response.json();
       setFeed((current) => current.filter((profile) => profile.id !== active.id));
       setSwipeKey((key) => key + 1);
@@ -89,7 +92,7 @@ export default function DiscoverApp() {
         setMatchPopup(data.profile);
         setMatches((current) => current.some((match) => match.id === active.id) ? current : [active, ...current]);
       }
-    } catch { setNotice("That didn’t go through. Please try again."); }
+    } catch (error) { setNotice(error instanceof Error ? error.message : "That didn’t go through. Please try again."); }
     finally { setBusy(false); }
   }, [active, busy, refresh, session]);
 
