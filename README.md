@@ -44,8 +44,8 @@ Without credentials, local development stores decisions in `data/swipes.json` (c
 For persistent hosting without Supabase, connect an Upstash Redis database through the Vercel Marketplace (Storage / Redis). Add these two server-only variables to `.env.local` for local use or let the integration inject them into Vercel:
 
 ```text
-UPSTASH_REDIS_REST_URL=https://YOUR_DATABASE.upstash.io
-UPSTASH_REDIS_REST_TOKEN=YOUR_REST_TOKEN
+UPSTASH_REDIS_REST_URL= "https://glorious-escargot-207135.upstash.io"
+UPSTASH_REDIS_REST_TOKEN= "gQAAAAAAAykfAAIgcDE4NTAzODNmYzc4MGU0ZjBjYWNjZjBiMTkwMTllYzhmYQ"
 ```
 
 Get the values from the Upstash database's REST connection details, or connect the database in Vercel so it injects them. Keep both values server-only; do not prefix them with `NEXT_PUBLIC_`. The assignment uses one demo identity and does not require external auth. Without these values, local development uses `data/swipes.json`; Vercel deliberately rejects writes instead of pretending its temporary filesystem is durable.
