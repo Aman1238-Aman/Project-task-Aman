@@ -6,3 +6,4 @@ out/
 data/swipes.json
 *.tsbuildinfo
 .vercel
+data/swipes.backup-*.json
