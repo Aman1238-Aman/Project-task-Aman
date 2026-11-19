@@ -25,7 +25,7 @@ Open `http://localhost:3000`. Pass profile 01, then like profile 02 to see the s
    UPSTASH_REDIS_REST_TOKEN
    ```
 
-   If they were not added automatically, copy the REST endpoint and REST token from the Upstash database connection details and add those exact names manually. Keep both server-only; never add a `NEXT_PUBLIC_` prefix.
+   Some Vercel KV-compatible integrations use `KV_REST_API_URL` and `KV_REST_API_TOKEN`; the app accepts either pair. If variables were not added automatically, copy the REST endpoint and REST token from the Upstash database connection details and add a matching pair manually. Keep both server-only; never add a `NEXT_PUBLIC_` prefix.
 
 5. Redeploy after connecting storage or changing variables.
 

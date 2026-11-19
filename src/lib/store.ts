@@ -9,8 +9,9 @@ type LocalState = { swipes: SwipeRecord[]; matches: MatchRecord[] };
 const localPath = process.env.COY_LOCAL_STORE_PATH
   ? path.resolve(process.env.COY_LOCAL_STORE_PATH)
   : path.join(process.cwd(), "data", "swipes.json");
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+// Upstash's direct integration uses UPSTASH_*; Vercel KV-compatible integrations may expose KV_*.
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 const redisConfigured = Boolean(redisUrl && redisToken);
 export function isDurableStoreConfigured() {
   return redisConfigured;

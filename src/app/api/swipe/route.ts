@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, matched: result.matched, ...(result.matched ? { profile: profiles.find((profile) => profile.id === profileId) } : {}) });
   } catch (error) {
     if (error instanceof Error && error.message === "PERSISTENCE_NOT_CONFIGURED") {
-      return NextResponse.json({ error: "Swipe history is not configured for this Vercel deployment. Connect an Upstash Redis database in Vercel or set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN, then redeploy." }, { status: 503 });
+      return NextResponse.json({ error: "Swipe history is not configured for this Vercel deployment. Connect Upstash Redis in Vercel or add its REST URL and token environment variables, then redeploy." }, { status: 503 });
     }
     return NextResponse.json({ error: "Unable to save that swipe right now. Check the connected Upstash Redis database and its environment variables." }, { status: 500 });
   }
